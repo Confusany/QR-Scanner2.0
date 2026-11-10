@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code ID Verifier & Sheet Sync</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HTML5-QRCode library for scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 shadow-md p-4 sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i data-lucide="scan-line" class="w-7 h-7 text-indigo-400"></i>
+                <h1 class="text-xl font-bold tracking-tight">QR ID Verifier</h1>
+            </div>
+            <button id="open-settings" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 px-3.5 py-2 rounded-lg text-sm font-medium transition">
+                <i data-lucide="settings" class="w-4 h-4"></i> Manage ID List
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+        
+        <!-- Status Banner / Result Display -->
+        <div id="result-container" class="hidden rounded-2xl p-6 text-center shadow-lg transition-all duration-300 transform scale-95 opacity-0">
+            <div id="result-icon-wrapper" class="inline-flex p-4 rounded-full mb-3 shadow-inner">
+                <i id="result-icon" class="w-10 h-10"></i>
+            </div>
+            <h2 id="result-title" class="text-2xl font-black uppercase tracking-wider mb-1"></h2>
+            <p id="result-message" class="text-lg font-medium opacity-90"></p>
+            <div id="scanned-id-badge" class="mt-4 inline-block bg-slate-900/40 px-4 py-1.5 rounded-full text-xs font-mono tracking-widest uppercase"></div>
+        </div>
+
+        <!-- Scanner Card -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex flex-col items-center">
+            <div class="w-full flex justify-between items-center mb-4">
+                <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="camera" class="w-4 h-4 text-indigo-400"></i> Camera Scanner
+                </span>
+                <span id="scanner-status" class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">Ready</span>
+            </div>
+
+            <!-- QR Reader Viewport -->
+            <div id="reader" class="w-full max-w-md bg-slate-900 rounded-xl overflow-hidden border border-slate-700 relative flex items-center justify-center min-h-[280px]">
+                <div class="text-slate-500 flex flex-col items-center gap-2">
+                    <i data-lucide="video-off" class="w-8 h-8"></i>
+                    <p class="text-sm">Camera is inactive</p>
+                </div>
+            </div>
+
+            <!-- Scanner Controls -->
+            <div class="flex gap-3 mt-4 w-full max-w-md">
+                <button id="start-scan" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+                    <i data-lucide="play" class="w-4 h-4"></i> Start Camera
+                </button>
+                <button id="stop-scan" class="hidden flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20">
+                    <i data-lucide="square" class="w-4 h-4"></i> Stop Camera
+                </button>
+            </div>
+        </div>
+
+        <!-- Manual Test / Input Section -->
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-3">
+            <div class="flex items-center gap-2 text-slate-400 text-sm font-medium whitespace-nowrap">
+                <i data-lucide="keyboard" class="w-4 h-4"></i> Quick Test:
+            </div>
+            <div class="flex w-full gap-2">
+                <input type="text" id="manual-input" placeholder="Type or paste ID here..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                <button id="verify-manual" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition">Verify</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal (ID List Manager) -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i data-lucide="database" class="w-5 h-5 text-indigo-400"></i> Authorized ID List
+                </h3>
+                <button id="close-settings" class="text-slate-400 hover:text-slate-100 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Add valid IDs below (one per line, or comma-separated). These are saved in your browser.</p>
+            
+            <div class="flex-1 flex flex-col gap-2">
+                <textarea id="id-list-textarea" class="w-full flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-indigo-500 resize-none min-h-[200px]" placeholder="ID_001&#10;ID_002&#10;ID_003"></textarea>
+            </div>
+
+            <div class="flex justify-between items-center mt-5 pt-3 border-t border-slate-700">
+                <span id="id-count-badge" class="text-xs text-slate-400 font-medium">0 IDs loaded</span>
+                <div class="flex gap-2">
+                    <button id="load-sample-ids" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-2 rounded-xl text-sm font-medium transition">Load Demo IDs</button>
+                    <button id="save-settings" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-lg shadow-indigo-600/20">Save List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        lucide.createIcons();
+
+        // Built-in fallback IDs or loaded from Google Sheet
+        const DEFAULT_IDS = [
+            'SMGM-2026-001', 'SMGM-2026-002', 'SMGM-2026-003', 'SMGM-2026-004',
+            'SMGM-2026-005', 'SMGM-2026-006', 'SMGM-2026-007', 'SMGM-2026-008',
+            'SMGM-2026-009', 'SMGM-2026-010', 'SMGM-2026-011', 'SMGM-2026-012',
+            'SMGM-2026-013', 'SMGM-2026-014', 'SMGM-2026-015', 'SMGM-2026-016',
+            'SMGM-2026-017', 'SMGM-2026-018'
+        ];
+
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxg17pWKQyC7DUER68u3chmhonoZoa2NDkMTvWAMBcd66hVe91j3tr5l9zbJRwKRAYIyw/exec";
+
+        function getAuthorizedIds() {
+            const stored = localStorage.getItem('authorized_qr_ids');
+            if (!stored) {
+                localStorage.setItem('authorized_qr_ids', JSON.stringify(DEFAULT_IDS));
+                return DEFAULT_IDS;
+            }
+            try { return JSON.parse(stored); } catch (e) { return DEFAULT_IDS; }
+        }
+
+        function saveAuthorizedIds(idsArray) {
+            localStorage.setItem('authorized_qr_ids', JSON.stringify(idsArray));
+            updateIdCountBadge();
+        }
+
+        function updateIdCountBadge() {
+            const ids = getAuthorizedIds();
+            document.getElementById('id-count-badge').textContent = `${ids.length} ID${ids.length === 1 ? '' : 's'} loaded`;
+        }
+
+        // DOM Elements
+        const startBtn = document.getElementById('start-scan');
+        const stopBtn = document.getElementById('stop-scan');
+        const scannerStatus = document.getElementById('scanner-status');
+        const resultContainer = document.getElementById('result-container');
+        const resultIconWrapper = document.getElementById('result-icon-wrapper');
+        const resultIcon = document.getElementById('result-icon');
+        const resultTitle = document.getElementById('result-title');
+        const resultMessage = document.getElementById('result-message');
+        const scannedIdBadge = document.getElementById('scanned-id-badge');
+        
+        const settingsModal = document.getElementById('settings-modal');
+        const openSettingsBtn = document.getElementById('open-settings');
+        const closeSettingsBtn = document.getElementById('close-settings');
+        const saveSettingsBtn = document.getElementById('save-settings');
+        const loadSampleBtn = document.getElementById('load-sample-ids');
+        const idListTextarea = document.getElementById('id-list-textarea');
+
+        const manualInput = document.getElementById('manual-input');
+        const verifyManualBtn = document.getElementById('verify-manual');
+
+        let html5QrCode = null;
+        let isScanning = false;
+        let scanCooldown = false;
+
+        function initSettingsTextarea() {
+            const ids = getAuthorizedIds();
+            idListTextarea.value = ids.join('\n');
+            updateIdCountBadge();
+        }
+        initSettingsTextarea();
+
+        // Modal Controls
+        openSettingsBtn.addEventListener('click', () => {
+            initSettingsTextarea();
+            settingsModal.classList.remove('hidden');
+        });
+
+        closeSettingsBtn.addEventListener('click', () => { settingsModal.classList.add('hidden'); });
+        settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+
+        saveSettingsBtn.addEventListener('click', () => {
+            const rawText = idListTextarea.value;
+            const parsedIds = rawText.split(/[\n,]/).map(id => id.trim()).filter(id => id.length > 0);
+            saveAuthorizedIds(parsedIds);
+            settingsModal.classList.add('hidden');
+        });
+
+        loadSampleBtn.addEventListener('click', () => { idListTextarea.value = DEFAULT_IDS.join('\n'); });
+
+        // Verification & Google Sheet Sync Logic
+        async function verifyId(scannedId) {
+            const cleanId = scannedId.trim();
+            const authorizedIds = getAuthorizedIds();
+            const isValid = authorizedIds.includes(cleanId);
+
+            // Show result locally on screen immediately
+            showResult(isValid, cleanId);
+
+            // If valid, sync automatically to your Google Sheet in the background
+            if (isValid) {
+                try {
+                    await fetch(WEB_APP_URL, {
+                        method: "POST",
+                        mode: "no-cors",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: cleanId })
+                    });
+                    console.log("Synced to Google Sheet: " + cleanId + " -> Arrived");
+                } catch (err) {
+                    console.error("Failed to sync with Google Sheet", err);
+                }
+            }
+        }
+
+        function showResult(isValid, idValue) {
+            resultContainer.classList.remove('hidden', 'scale-95', 'opacity-0');
+            scannedIdBadge.textContent = `ID: ${idValue || 'Unknown'}`;
+
+            if (isValid) {
+                resultContainer.className = "rounded-2xl p-6 text-center shadow-lg transition-all duration-300 transform bg-emerald-950/80 border-2 border-emerald-500/50 text-emerald-200";
+                resultIconWrapper.className = "inline-flex p-4 rounded-full mb-3 shadow-inner bg-emerald-500/20 text-emerald-400";
+                resultIcon.setAttribute('data-lucide', 'check-circle');
+                resultTitle.textContent = "Correct / Authorized";
+                resultMessage.textContent = "Verified! Marked as 'Arrived' in your Google Sheet.";
+            } else {
+                resultContainer.className = "rounded-2xl p-6 text-center shadow-lg transition-all duration-300 transform bg-rose-950/80 border-2 border-rose-500/50 text-rose-200";
+                resultIconWrapper.className = "inline-flex p-4 rounded-full mb-3 shadow-inner bg-rose-500/20 text-rose-400";
+                resultIcon.setAttribute('data-lucide', 'x-circle');
+                resultTitle.textContent = "Not in List";
+                resultMessage.textContent = "This ID was not found in the authorized list.";
+            }
+            lucide.createIcons();
+
+            setTimeout(() => {
+                scanCooldown = false;
+            }, 3000);
+        }
+
+        // Manual Verification
+        verifyManualBtn.addEventListener('click', () => {
+            const val = manualInput.value;
+            if (val) {
+                verifyId(val);
+                manualInput.value = '';
+            }
+        });
+
+        manualInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyManualBtn.click();
+        });
+
+        // Camera Scanner Handlers
+        startBtn.addEventListener('click', async () => {
+            if (isScanning) return;
+
+            try {
+                html5QrCode = new Html5Qrcode("reader");
+                const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        if (scanCooldown) return;
+                        scanCooldown = true;
+                        verifyId(decodedText);
+                    },
+                    (errorMessage) => {}
+                );
+
+                isScanning = true;
+                startBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+                scannerStatus.textContent = "Scanning...";
+                scannerStatus.className = "text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-medium animate-pulse";
+            } catch (err) {
+                alert("Unable to access camera. Please check camera permissions.");
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            if (!isScanning || !html5QrCode) return;
+
+            try {
+                await html5QrCode.stop();
+                await html5QrCode.clear();
+                isScanning = false;
+                stopBtn.classList.add('hidden');
+                startBtn.classList.remove('hidden');
+                scannerStatus.textContent = "Ready";
+                scannerStatus.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-medium";
+                
+                document.getElementById('reader').innerHTML = `
+                    <div class="text-slate-500 flex flex-col items-center gap-2">
+                        <i data-lucide="video-off" class="w-8 h-8"></i>
+                        <p class="text-sm">Camera is inactive</p>
+                    </div>
+                `;
+                lucide.createIcons();
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>
